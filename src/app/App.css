@@ -1,0 +1,71 @@
+body {
+  /* text-align: center; */
+}
+
+.App-header {
+  background-color: #000;
+  height: 160px;
+  padding: 20px;
+  color: white;
+}
+
+.App-intro {
+  font-size: large;
+}
+
+.App-ticker {
+  font-size: medium;
+}
+
+.inout_with_label {
+  display: flex;
+  flex-direction: column;
+}
+
+.edit_button {
+  /* border: 0; */
+  background: none;
+  background-size: 100%;
+  width: 60px;
+  padding-right: 14px;
+  font-size: x-small;
+  font-weight: 900;
+}
+
+.counter_name {
+  height: 15px;
+  font-family: inherit;
+  /* white-space: nowrap; */
+  overflow: auto;
+  font: inherit;
+  resize: none;
+  border: none;
+  overflow: auto;
+  outline: none;
+  -webkit-box-shadow: none;
+  -moz-box-shadow: none;
+  box-shadow: none;
+}
+
+.caption {
+  display: inline;
+  padding-bottom: 1px;
+}
+
+.counter_root {
+  display: flex;
+  flex-direction: column;
+}
+
+.action_buttons {
+  margin-left: 20px;
+  width: 30px;
+  height: 30px;
+}
+
+.control_buttons {
+  display: flex;
+  /* padding-left: 80px; */
+}
+
+.headline textarea {}
