@@ -4,14 +4,14 @@ import kotlinx.html.js.*
 import react.RBuilder
 import react.dom.*
 import kotlin.browser.document
-import kotlin.js.Math.random
+import kotlin.js.Date
 
 interface Eh {
     fun updateAndSave()
     fun remove(d: CounterDate)
     fun duplicate(d: CounterDate)
-    fun linkOK(counterID: String, increment: Int, mod: Int): Boolean
-    fun getCounter(linkedCounterID: String): CounterDate?
+    fun linkOK(counterID: Int, increment: Int, mod: Int): Boolean
+    fun getCounter(linkedCounterID: Int): CounterDate?
     //    fun moveUp(d: CounterDate)
 //    fun moveDown(d: CounterDate)
 //    fun swap(me: CounterDate, otherHash: Int)
@@ -29,6 +29,9 @@ fun RBuilder.counterUI(data: CounterDate, eh: Eh) {
                     onClickFunction = {
                         data.isEditMode = !data.isEditMode
                         eh.updateAndSave()
+                    }
+                    onDoubleClickFunction = {
+                        eh.duplicate(data)
                     }
                 }
             }
@@ -54,19 +57,16 @@ fun RBuilder.counterUI(data: CounterDate, eh: Eh) {
                 attrs.jsStyle { marginTop = "3px" }
             }
             if (data.isShowCount && !data.isHideActionButtons) {
-                div {
-                    attrs.jsStyle { marginLeft = "Auto" }
-                    button(classes = "action_buttons") {
-                        +"+"
-                        attrs.onClickFunction = {
-                            increment(1, data, eh)
-                        }
+                button(classes = "action_buttons") {
+                    +"+"
+                    attrs.onClickFunction = {
+                        increment(1, data, eh)
                     }
-                    button(classes = "action_buttons") {
-                        +"-"
-                        attrs.onClickFunction = {
-                            increment(-1, data, eh)
-                        }
+                }
+                button(classes = "action_buttons") {
+                    +"-"
+                    attrs.onClickFunction = {
+                        increment(-1, data, eh)
                     }
                 }
             }
@@ -80,18 +80,6 @@ fun RBuilder.counterUI(data: CounterDate, eh: Eh) {
             }
         }
         if (data.isEditMode) {
-            button {
-                +"Del"
-                attrs.jsStyle {
-                    width = "40px"
-                    marginLeft = "auto"
-                }
-                attrs {
-                    onClickFunction = {
-                        eh.remove(data)
-                    }
-                }
-            }
             div {
                 attrs.style = js {
                     paddingLeft = "60px"
@@ -110,12 +98,13 @@ fun RBuilder.counterUI(data: CounterDate, eh: Eh) {
                     +"Link"
                     attrs.id = data.hashCode().toString() + "l"
                     attrs.onDoubleClickFunction = {
-                        data.linkedCounterID = ""
+                        println("Wow")
+                        data.linkedCounterID = 0
                         data.showUseButton = false
                         eh.updateAndSave()
                     }
                 }
-                if (data.linkedCounterID.isNotEmpty()) {
+                if (data.linkedCounterID != 0) {
                     inputBind(InputType.number, false, "Link increment:", data.linkIncrement.toString(), eh) {
                         data.linkIncrement = it.toInt()
                     }
@@ -143,6 +132,14 @@ fun RBuilder.counterUI(data: CounterDate, eh: Eh) {
                         data.min = it.toInt()
                         data.currentCount = data.min
                         checkMinMax(data)
+                    }
+                }
+                button {
+                    +"Del"
+                    attrs {
+                        onClickFunction = {
+                            eh.remove(data)
+                        }
                     }
                 }
             }
@@ -207,7 +204,7 @@ private fun RBuilder.inputBind(inputType: InputType, isDoubleClick: Boolean, des
                     readonly = true
                     onDoubleClickFunction = {
                         it.currentTarget.asDynamic().readOnly = false
-                        if (document.activeElement == it.currentTarget && it.currentTarget.asDynamic().readOnly == true)
+                        if (document.activeElement != it.currentTarget)
                             it.currentTarget.asDynamic().select()
                     }
                     onBlurFunction = {
@@ -238,7 +235,7 @@ private fun RBuilder.inputBind(inputType: InputType, isDoubleClick: Boolean, des
     }
 }
 
-data class CounterDate(
+class CounterDate(
         var freeText: String = "Counter",
         var currentCount: Int = 0,
         var increment: Int = 1,
@@ -248,25 +245,9 @@ data class CounterDate(
         var isShowCount: Boolean = true,
         var isHideActionButtons: Boolean = false,
         var isHeadline: Boolean = true,
-        var linkedCounterID: String = "",
+        var linkedCounterID: Int = 0,
         var linkIncrement: Int = 1,
         var showUseButton: Boolean = false
 ) {
-    fun dup(): CounterDate {
-        val copy = this.copy()
-        println(this.id)
-        println(copy.id)
-
-        copy.id = random().toInt().toString(36).substring(2, 16)
-        println(copy.id)
-        return copy
-    }
-
-    var id = random().toInt().toString(36).substring(2, 16)
-}
-
-fun Int.toString(radix: Int): String {
-    val value = this
-    @Suppress("UnsafeCastFromDynamic")
-    return js(code = "value.toString(radix)")
+    val id = this.hashCode()
 }
