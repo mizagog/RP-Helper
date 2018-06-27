@@ -3,7 +3,9 @@ package app
 import counterUI
 import CounterDate
 import Eh
+import kotlinx.html.id
 import kotlinx.html.js.onClickFunction
+import makeId
 import org.w3c.dom.Element
 import org.w3c.dom.events.Event
 import react.*
@@ -12,31 +14,35 @@ import kotlin.browser.document
 import kotlin.browser.localStorage
 
 var startElement: CounterDate? = null
+var selectedIndex: Int = 0
+var isExport = false
 
 class App : RComponent<RProps, AppState>() {
     override fun AppState.init() {
         list = mutableListOf()
         val data = localStorage.getItem("list")
+        undoList = localStorage.getItem("undoList")?.let { JSON.parse<Array<String>>(it).toMutableList() } ?: arrayListOf()
+
         if (data != null) {
             list = JSON.parse<Array<CounterDate>>(data).toMutableList()
         } else {
             list.add(CounterDate("Stats", isShowCount = false))
-            list.add(CounterDate("HP", 10, max = 10))
-            val m = CounterDate("MP", 15, max = 15)
+            list.add(CounterDate("HP", 10.0, max = 10.0))
+            val m = CounterDate("MP", 15.0, max = 15.0)
             list.add(m)
-            list.add(CounterDate("XP", 10, max = 10))
+            list.add(CounterDate("XP", 10.0, max = 10.0))
             list.add(CounterDate("", isShowCount = false))
-            list.add(CounterDate("CP", 15))
-            list.add(CounterDate("SP", 3))
+            list.add(CounterDate("CP", 15.0))
+            list.add(CounterDate("SP", 3.0))
             list.add(CounterDate("", isShowCount = false))
             list.add(CounterDate("Items", isShowCount = false))
-            list.add(CounterDate("Bronze Sword", currentCount = 5, isHideActionButtons = true))
-            list.add(CounterDate("Leather Hood", currentCount = 2, isHideActionButtons = true))
+            list.add(CounterDate("Bronze Sword", currentCount = 5.0, isHideActionButtons = true))
+            list.add(CounterDate("Leather Hood", currentCount = 2.0, isHideActionButtons = true))
             list.add(CounterDate("", isShowCount = false))
             list.add(CounterDate("Skills", isShowCount = false))
-            list.add(CounterDate(freeText = "Cleave", currentCount = 0, increment = 0, linkedCounterID = m.hashCode(), showUseButton = true, linkIncrement = 2, isShowCount = false))
-            list.add(CounterDate(freeText = "Jump Good", currentCount = 0, increment = 0, linkedCounterID = m.hashCode(), showUseButton = true, linkIncrement = 1, isShowCount = false))
-            list.add(CounterDate(freeText = "God Bless (3/Day)", currentCount = 3, increment = 1, linkedCounterID = m.hashCode(), linkIncrement = 3))
+            list.add(CounterDate(freeText = "Cleave", currentCount = 0.0, increment = 0.0, linkedCounterID = m.id, showUseButton = true, linkIncrement = 2.0, isShowCount = false))
+            list.add(CounterDate(freeText = "Jump Good", currentCount = 0.0, increment = 0.0, linkedCounterID = m.id, showUseButton = true, linkIncrement = 1.0, isShowCount = false))
+            list.add(CounterDate(freeText = "God Bless (3/Day)", currentCount = 3.0, increment = 1.0, linkedCounterID = m.id, linkIncrement = 3.0))
             list.add(CounterDate("", isShowCount = false))
             list.add(CounterDate("Bio", isShowCount = false))
             list.add(CounterDate("""
@@ -44,37 +50,15 @@ class App : RComponent<RProps, AppState>() {
                 Talk to Fish
             """.trimIndent(), isShowCount = false))
         }
+//        }
     }
 
     override fun componentDidMount() {
-        addAllListeners()
-    }
-
-    override fun componentDidUpdate(prevProps: RProps, prevState: AppState) {
-        addAllListeners()
-    }
-
-    private fun addAllListeners() {
-        state.list.forEach {
-            val id = it.hashCode()
-            attachListener(document.getElementById("${id}e")) {
-                val pair = getDataByPosition(it)
-                if (startElement != null) {
-                    if (pair != null) {
-                        putUnder(pair.first, startElement!!, pair.second)
-                        startElement = null
-                    } else {
-                    }
-                }
+        document.getElementById("root")!!.addEventListener("touchmove", {
+            if (startElement != undefined && startElement != null) {
+                it.preventDefault()
             }
-            attachListener(document.getElementById("${id}l")) {
-                val pair = getDataByPosition(it)
-                if (pair != null && startElement != null) {
-                    linkCounters(startElement!!, pair.first)
-                    startElement = null
-                }
-            }
-        }
+        })
     }
 
     private fun wow() {
@@ -93,43 +77,14 @@ ${arr2[index].split("|").filter { it.isNotEmpty() }.map { "member: $it" }.joinTo
         })
     }
 
-    private fun attachListener(element: Element?, callback: (Event) -> Unit) {
-        if (element != null) {
-            element.addEventListener("touchstart", { startElement = getDataByPosition(it)?.first })
-            element.addEventListener("touchmove", { if (startElement != null) it.preventDefault() })
-            element.addEventListener("touchend", callback)
-        }
-    }
-
-    private fun linkCounters(me: CounterDate, other: CounterDate) {
-        if (me != other) {
-            me.linkedCounterID = other.id
-            updateSave()
-        }
-    }
-
-    private fun getDataByPosition(it: Event): Pair<CounterDate, Boolean>? {
-        val y: Double = it.asDynamic().changedTouches[0].clientY
-        val element = document.elementFromPoint(it.asDynamic().changedTouches[0].clientX, y)
-        val id = element?.id
-        if (!id.isNullOrEmpty() && element != null) {
-            println(y)
-            val rect = element.getBoundingClientRect()
-            val d = rect.height / 2 + rect.y
-            println(y > d)
-            return Pair(state.list.first { it.hashCode().toString() == id!!.dropLast(1) }, (y < d))
-        }
-        return null
-    }
-
     override fun RBuilder.render() {
 //        wow()
-//        div { attrs.jsStyle = js { height = "1000px" } }
+//        div { attrs.jsStyle = js { height = "1001px" } }
         button {
             +"Clear All"
             attrs {
                 onClickFunction = {
-                    localStorage.removeItem("list")
+                    localStorage.clear()
                 }
             }
         }
@@ -141,15 +96,97 @@ ${arr2[index].split("|").filter { it.isNotEmpty() }.map { "member: $it" }.joinTo
                 updateSave()
             }
         }
+
+        button {
+            +"Export / Import"
+            attrs.onClickFunction = {
+                isExport = !isExport
+                val element = document.getElementById("expImp")
+                if (element != null) {
+                    val s: String = element.asDynamic().value!!
+                    if (!s.isEmpty()) {
+                        localStorage.setItem("list", s)
+                        console.log(localStorage.getItem("list"))
+                    }
+                }
+                setState { }
+            }
+        }
+        if (state.undoList.size > 1)
+            button {
+                +"Undo"
+                attrs.onClickFunction = {
+                    val lastIndex = state.undoList.lastIndex
+                    state.undoList.removeAt(lastIndex)
+                    state.list = JSON.parse<Array<CounterDate>>(state.undoList[lastIndex - 1]).toMutableList()
+                    setState { }
+                }
+            }
+        if (isExport)
+            textArea {
+                attrs.id = "expImp"
+                +"${localStorage.getItem("list")}"
+            }
         div("list-container") {
             state.list.forEach {
                 counterUI(it, eh = object : Eh {
-                    override fun getCounter(linkedCounterID: Int): CounterDate? {
+                    override fun linkCounter(e: Event, data: CounterDate) {
+                        val (x, y, element) = getElementFromPos(e)
+                        if (element != null && element.id.isNotEmpty()) {
+                            val id = state.list.first { it.id == element.id }.id
+                            if (!data.id.equals(id)) {
+                                data.linkedCounterID = id
+                                startElement = null
+                                updateSave()
+                            }
+                        }
+                        startElement = null
+                    }
+
+                    override fun setStartElement(start: CounterDate) {
+                        startElement = start
+//                        println(start.id)
+                    }
+
+                    override fun locationChange(e: Event, data: CounterDate) {
+                        if (startElement != null) {
+                            val (y, x, element) = getElementFromPos(e)
+                            val id = element?.id
+//                            println("id: " + id)
+                            if (!id.isNullOrEmpty() && element != null) {
+                                val rect = element.getBoundingClientRect()
+//                                println("me: ${data.id}, ${data.freeText}")
+                                println("startElement!!.id: " + data.id)
+                                val d = rect.height / 2 + rect.y
+                                val isUp = y < d
+//                                println("isUp: " + isUp)
+                                putUnder(state.list.first { it.id == id!! }, data, isUp)
+                            } else {
+                                val root = document.getElementById("root")
+                                if (root != null) {
+//                                    println(x)
+                                    val rect = root.getBoundingClientRect()
+                                    if (x > rect.width / 3) {
+                                        dup(data)
+                                    }
+                                }
+                            }
+                        }
+                        startElement = null
+                    }
+
+                    private fun getElementFromPos(e: Event): Triple<Double, Double, Element?> {
+                        val y = e.asDynamic().changedTouches[0].clientY as Double
+                        val x = e.asDynamic().changedTouches[0].clientX as Double
+                        return Triple(y, x, document.elementFromPoint(x, y))
+                    }
+
+                    override fun getCounter(linkedCounterID: String): CounterDate? {
                         return state.list.firstOrNull { it.id == linkedCounterID }
                     }
 
-                    override fun linkOK(counterID: Int, increment: Int, mod: Int): Boolean {
-                        println(counterID)
+                    override fun linkOK(counterID: String, increment: Double, mod: Int): Boolean {
+//                        println(counterID)
                         state.list.forEach { println(it.id) }
                         val data = state.list.firstOrNull { it.id == counterID }
                         return if (data != null) {
@@ -157,46 +194,18 @@ ${arr2[index].split("|").filter { it.isNotEmpty() }.map { "member: $it" }.joinTo
                             else {
                                 data.currentCount += increment * mod
                                 updateSave()
+//                               if(data.currentCount>data.max)data.currentCount = data.max
+                                if (data.max != 0.0)
+                                    data.currentCount = minOf(data.currentCount, data.max)
                                 true
                             }
                         } else true
                     }
 
                     override fun duplicate(d: CounterDate) {
-                        val counterDate = CounterDate(
-                                d.freeText,
-                                d.currentCount,
-                                d.increment,
-                                d.max,
-                                d.min,
-                                d.isEditMode,
-                                d.isShowCount,
-                                d.isHideActionButtons,
-                                true,
-                                d.linkedCounterID,
-                                d.linkIncrement,
-                                d.showUseButton
-                        )
-                        state.list.add(state.list.indexOf(d), counterDate)
-                        updateSave()
+                        dup(d)
                     }
 
-                    //                    override fun moveUp(d: CounterDate) {
-//                        val i = state.list.indexOf(d)
-//                        if (i > 0) {
-//                            state.list.remove(d)
-//                            state.list.add(i - 1, d)
-//                            updateSave()
-//                        }
-//                    }
-//                    override fun moveDown(d: CounterDate) {
-//                        val i = state.list.indexOf(d)
-//                        if (i < state.list.size - 1) {
-//                            state.list.remove(d)
-//                            state.list.add(i + 1, d)
-//                            updateSave()
-//                        }
-//                    }
                     override fun updateAndSave() {
                         updateSave()
                     }
@@ -210,18 +219,42 @@ ${arr2[index].split("|").filter { it.isNotEmpty() }.map { "member: $it" }.joinTo
         }
     }
 
+    private fun dup(d: CounterDate) {
+        val duplicate = JSON.parse<CounterDate>(JSON.stringify(d))
+        duplicate.id = makeId()
+//        duplicate.freeText = ""
+//        println(duplicate.id)
+//        println(d.id)
+        state.list.add(state.list.indexOf(d) + 1, duplicate)
+        updateSave()
+    }
+
+    private fun del(d: CounterDate) {
+        state.list.remove(d)
+        updateSave()
+    }
+
     private fun updateSave() {
-        localStorage.setItem("list", JSON.stringify(state.list.toTypedArray()))
+        console.log("saved")
+        val current = JSON.stringify(state.list.toTypedArray())
+        state.undoList.add(current)
+        localStorage.setItem("list", current)
+        localStorage.setItem("undoList", JSON.stringify(state.undoList.toTypedArray()))
         setState { }
     }
 
+    //    private fun updateSave() {
+//        localStorage.setItem("masterList", JSON.stringify(masterList))
+//        localStorage.setItem("masterListIndex", JSON.stringify(selectedIndex))
+//        setState { }
+//    }
     private fun putUnder(me: CounterDate, other: CounterDate, isUnder: Boolean) {
 //        println("swaappy")
         val list = state.list
         println("me:${me.freeText} ${list.indexOf(me)} other:${other.freeText} ${list.indexOf(other)}")
-        if (me != other) {
+        if (me.id != other.id) {
             val absoluteValue = list.indexOf(other) - list.indexOf(me)
-            println(absoluteValue)
+//            println(absoluteValue)
             list.remove(other)
             when (absoluteValue) {
                 1 -> list.add(list.indexOf(me), other)
@@ -235,6 +268,7 @@ ${arr2[index].split("|").filter { it.isNotEmpty() }.map { "member: $it" }.joinTo
 
 interface AppState : RState {
     var list: MutableList<CounterDate>
+    var undoList: MutableList<String>
 }
 
 fun RBuilder.app() = child(App::class) {}

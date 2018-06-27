@@ -1,22 +1,28 @@
 import kotlinext.js.js
 import kotlinx.html.*
 import kotlinx.html.js.*
+import org.w3c.dom.events.Event
 import react.RBuilder
 import react.dom.*
 import kotlin.browser.document
-import kotlin.js.Date
+import kotlin.browser.window
+import kotlin.js.Math
 
 interface Eh {
     fun updateAndSave()
     fun remove(d: CounterDate)
     fun duplicate(d: CounterDate)
-    fun linkOK(counterID: Int, increment: Int, mod: Int): Boolean
-    fun getCounter(linkedCounterID: Int): CounterDate?
+    fun linkOK(counterID: String, increment: Double, mod: Int): Boolean
+    fun getCounter(linkedCounterID: String): CounterDate?
+    fun setStartElement(start: CounterDate)
+    fun locationChange(e: Event, data: CounterDate)
+    fun linkCounter(e: Event, data: CounterDate)
     //    fun moveUp(d: CounterDate)
 //    fun moveDown(d: CounterDate)
 //    fun swap(me: CounterDate, otherHash: Int)
 }
 
+var oldVal: String = ""
 fun RBuilder.counterUI(data: CounterDate, eh: Eh) {
     div(classes = "counter_root") {
         attrs.jsStyle { if (data.isEditMode) border = "solid thin" }
@@ -25,19 +31,30 @@ fun RBuilder.counterUI(data: CounterDate, eh: Eh) {
             button(classes = "edit_button") {
                 +"E"
                 attrs {
-                    id = data.hashCode().toString() + "e"
+                    id = data.id
                     onClickFunction = {
                         data.isEditMode = !data.isEditMode
                         eh.updateAndSave()
                     }
-                    onDoubleClickFunction = {
-                        eh.duplicate(data)
+                    onTouchEndFunction = {
+                        eh.locationChange(it, data)
                     }
+                    onTouchStartFunction = {
+                        eh.setStartElement(data)
+                    }
+//                    element.addEventListener("touchstart", { startElement = getDataByPosition(it)?.first })
+//                    element.addEventListener("touchmove", { if (startElement != null) it.preventDefault() })
+//                    element.addEventListener("touchend", callback)
                 }
             }
             div(if (data.isHeadline) "headline" else "") {
                 inputBind(InputType.text, true, "", data.freeText, eh) {
                     data.freeText = it
+                }
+                attrs.onKeyUpFunction = {
+
+                    if (it.asDynamic().key == "Enter")
+                        console.log("wow")
                 }
             }
             if (data.isShowCount) {
@@ -48,25 +65,28 @@ fun RBuilder.counterUI(data: CounterDate, eh: Eh) {
 
                 inputBind(InputType.number, true, "", data.currentCount.toString(), eh)
                 {
-                    data.currentCount = it.toInt()
+                    data.currentCount = it.toDouble()
                     checkMinMax(data)
                 }
             }
             span {
-                +if (data.max != 0) "/ ${data.max}" else ""
+                +if (data.max != 0.0) "/ ${data.max}" else ""
                 attrs.jsStyle { marginTop = "3px" }
             }
             if (data.isShowCount && !data.isHideActionButtons) {
-                button(classes = "action_buttons") {
-                    +"+"
-                    attrs.onClickFunction = {
-                        increment(1, data, eh)
+                div {
+                    attrs.jsStyle { marginLeft = "Auto" }
+                    button(classes = "action_buttons") {
+                        +"+"
+                        attrs.onClickFunction = {
+                            increment(1, data, eh)
+                        }
                     }
-                }
-                button(classes = "action_buttons") {
-                    +"-"
-                    attrs.onClickFunction = {
-                        increment(-1, data, eh)
+                    button(classes = "action_buttons") {
+                        +"-"
+                        attrs.onClickFunction = {
+                            increment(-1, data, eh)
+                        }
                     }
                 }
             }
@@ -74,12 +94,24 @@ fun RBuilder.counterUI(data: CounterDate, eh: Eh) {
                 button {
                     +"${data.linkIncrement} ${eh.getCounter(data.linkedCounterID)?.freeText}"
                     attrs.onClickFunction = {
-                        increment(-1, data, eh)
+                        incrementLinked(-1, data, eh)
                     }
                 }
             }
         }
         if (data.isEditMode) {
+            button {
+                +"Del"
+                attrs.jsStyle {
+                    width = "40px"
+                    marginLeft = "auto"
+                }
+                attrs {
+                    onClickFunction = {
+                        eh.remove(data)
+                    }
+                }
+            }
             div {
                 attrs.style = js {
                     paddingLeft = "60px"
@@ -96,17 +128,25 @@ fun RBuilder.counterUI(data: CounterDate, eh: Eh) {
                 br { }
                 button {
                     +"Link"
-                    attrs.id = data.hashCode().toString() + "l"
-                    attrs.onDoubleClickFunction = {
-                        println("Wow")
-                        data.linkedCounterID = 0
-                        data.showUseButton = false
-                        eh.updateAndSave()
+                    attrs.id = data.id
+                    attrs {
+                        onDoubleClickFunction = {
+                            data.linkedCounterID = ""
+                            data.showUseButton = false
+                            eh.updateAndSave()
+                        }
+                        onTouchStartFunction = {
+                            eh.setStartElement(data)
+                        }
+
+                        onTouchEndFunction = {
+                            eh.linkCounter(it, data)
+                        }
                     }
                 }
-                if (data.linkedCounterID != 0) {
+                if (data.linkedCounterID.isNotEmpty()) {
                     inputBind(InputType.number, false, "Link increment:", data.linkIncrement.toString(), eh) {
-                        data.linkIncrement = it.toInt()
+                        data.linkIncrement = it.toDouble()
                     }
                     inputCheckboxBind(eh, "Show Use Button?", data.showUseButton, {
                         data.showUseButton = it
@@ -121,30 +161,27 @@ fun RBuilder.counterUI(data: CounterDate, eh: Eh) {
                         data.isHideActionButtons = it
                     })
                     inputBind(InputType.number, false, "Change increment:", data.increment.toString(), eh) {
-                        data.increment = it.toInt()
+                        data.increment = it.toDouble()
                     }
                     inputBind(InputType.number, false, "Change Max:", data.max.toString(), eh) {
-                        data.max = it.toInt()
+                        data.max = it.toDouble()
                         data.currentCount = data.max
                         checkMinMax(data)
                     }
                     inputBind(InputType.number, false, "Change Min:", data.min.toString(), eh) {
-                        data.min = it.toInt()
+                        data.min = it.toDouble()
                         data.currentCount = data.min
                         checkMinMax(data)
-                    }
-                }
-                button {
-                    +"Del"
-                    attrs {
-                        onClickFunction = {
-                            eh.remove(data)
-                        }
                     }
                 }
             }
         }
     }
+}
+
+fun incrementLinked(mod: Int, data: CounterDate, eh: Eh) {
+    if (eh.linkOK(data.linkedCounterID, data.linkIncrement, mod))
+        increment(mod, data, eh)
 }
 
 private fun RBuilder.inputCheckboxBind(eh: Eh, label: String, b: Boolean, f: (Boolean) -> Unit) {
@@ -153,7 +190,7 @@ private fun RBuilder.inputCheckboxBind(eh: Eh, label: String, b: Boolean, f: (Bo
             attrs {
                 checked = b
                 onChangeFunction = {
-                    f(it.currentTarget.asDynamic().checked)
+                    f(it.currentTarget.asDynamic().checked as Boolean)
                     eh.updateAndSave()
                 }
             }
@@ -165,24 +202,28 @@ private fun RBuilder.inputCheckboxBind(eh: Eh, label: String, b: Boolean, f: (Bo
 }
 
 private fun increment(mod: Int, data: CounterDate, eh: Eh) {
-    if (eh.linkOK(data.linkedCounterID, data.linkIncrement, mod)) {
-        data.currentCount += data.increment * mod
+    val newVal = data.currentCount + data.increment * mod
+    if (newVal >= data.min && (newVal <= data.max || data.max == 0.0)) {
+//        console.log(data)
+        data.currentCount = newVal
         checkMinMax(data)
         eh.updateAndSave()
     }
+//    console.log(newVal)
 }
 
 private fun checkMinMax(data: CounterDate) {
-    if (data.max != 0 && data.currentCount > data.max) data.currentCount = data.max
-//    if (data.min != 0 && data.currentCount < data.min) data.currentCount = data.min
-    if (data.currentCount < data.min) data.currentCount = data.min
+    if (data.max != 0.0)
+        data.currentCount = minOf(data.currentCount, data.max)
+    data.currentCount = maxOf(data.currentCount, data.min)
 }
 
 private fun RBuilder.inputBind(inputType: InputType, isDoubleClick: Boolean, desc: String, label: String, eh: Eh, f: (v: String) -> Unit) {
     div {
         label { +desc }
         val classes = if (isDoubleClick) "counter_name" else ""
-        textArea(classes = classes) {
+//        input(type = inputType, classes = classes) {
+        textArea( classes = classes) {
             if (isDoubleClick) {
                 val baseHeight = 18.0
                 val w = when {
@@ -200,34 +241,43 @@ private fun RBuilder.inputBind(inputType: InputType, isDoubleClick: Boolean, des
             }
             attrs {
                 //                wrap = js { "hard" }
-                if (isDoubleClick) {
+//                if (isDoubleClick) {
                     readonly = true
-                    onDoubleClickFunction = {
-                        it.currentTarget.asDynamic().readOnly = false
-                        if (document.activeElement != it.currentTarget)
-                            it.currentTarget.asDynamic().select()
+                    val dcFun: (Event) -> Unit = {
+                        val asDynamic = it.currentTarget.asDynamic()
+//                        if (document.activeElement == it.currentTarget && it.currentTarget.asDynamic().readOnly == true)
+                        if (asDynamic.readOnly == true)
+                            asDynamic.select()
+                        asDynamic.readOnly = false
                     }
+                    onDoubleClickFunction = dcFun
+                    onMouseUpFunction = dcFun
                     onBlurFunction = {
                         it.currentTarget.asDynamic().readOnly = true
+                        document.asDynamic().getSelection().empty()
+                        window.asDynamic().getSelection().removeAllRanges()
                         it.currentTarget.asDynamic().blur()
                     }
-                } else {
-                    onFocusFunction = {
-                        it.currentTarget.asDynamic().select()
-                    }
-                }
+//                } else {
+//                    onFocusFunction = {
+//                        it.currentTarget.asDynamic().select()
+//                    }
+//                }
                 value = label
+                onKeyDownFunction = {
+                    oldVal = it.currentTarget.asDynamic().value as String
+                }
                 onChangeFunction = {
                     it.currentTarget.asDynamic().style.width = (it.currentTarget.asDynamic().value.length + 1) * 7
-                    val v: String = it.currentTarget.asDynamic().value
-                    var s: String = v
+                    var v: String = it.currentTarget.asDynamic().value
+
                     if (inputType == InputType.number) {
-                        s = when (v.toIntOrNull()) {
-                            null -> "0"
-                            else -> v
-                        }
+//                        if (oldVal == "0") v = v.replace("0", "")
+                        console.log(v)
+//                        if (v.toDoubleOrNull() == null) v = "0"
+                        v = v.toDoubleOrNull()?.toString() ?: "0"
                     }
-                    f(s)
+                    f(v)
                     eh.updateAndSave()
                 }
             }
@@ -235,19 +285,39 @@ private fun RBuilder.inputBind(inputType: InputType, isDoubleClick: Boolean, des
     }
 }
 
-class CounterDate(
+data class CounterDate(
         var freeText: String = "Counter",
-        var currentCount: Int = 0,
-        var increment: Int = 1,
-        var max: Int = 0,
-        var min: Int = 0,
+        var currentCount: Double = 0.0,
+        var increment: Double = 1.0,
+        var max: Double = 0.0,
+        var min: Double = 0.0,
         var isEditMode: Boolean = false,
         var isShowCount: Boolean = true,
         var isHideActionButtons: Boolean = false,
         var isHeadline: Boolean = true,
-        var linkedCounterID: Int = 0,
-        var linkIncrement: Int = 1,
+        var linkedCounterID: String = "",
+        var linkIncrement: Double = 1.0,
         var showUseButton: Boolean = false
 ) {
-    val id = this.hashCode()
+    var id = makeId()
+}
+
+fun makeId(): String {
+    var text = ""
+    val possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+    var cout = 0
+    possible.forEach {
+        if (cout < 10) {
+            text += possible[(Math.floor(Math.random() * possible.length))]
+            cout++
+        }
+    }
+
+    return text
+}
+
+fun Int.toString(radix: Int): String {
+    val value = this
+    @Suppress("UnsafeCastFromDynamic")
+    return js(code = "value.toString(radix)")
 }
